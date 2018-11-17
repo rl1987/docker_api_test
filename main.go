@@ -6,10 +6,11 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/davecgh/go-spew/spew"
 )
@@ -20,6 +21,12 @@ const imageTag = "latest"
 const imageToPull = imageName + ":" + imageTag
 
 const contentType = "application/json"
+
+type DockerImage struct {
+	Identifier  string   `json:"Id"`
+	RepoDigests []string `json:"RepoDigests"`
+	RepoTags    []string `json:"RepoTags"`
+}
 
 type APIClient struct {
 	HubUsername string
@@ -89,19 +96,68 @@ func (ac *APIClient) Get(url string, result interface{}) error {
 	return json.NewDecoder(resp.Body).Decode(result)
 }
 
-func (ac *APIClient) PullImage(image string) error {
+func (ac *APIClient) FindImage(image string) ([]DockerImage, error) {
+	filter := map[string][]string{
+		"reference": []string{image},
+	}
+
+	filtersJson, err := json.Marshal(filter)
+	if err != nil {
+		return nil, err
+	}
+
+	var result []DockerImage
+	url := "/images/json?filters=" + string(filtersJson)
+
+	if err = ac.Get(url, &result); err != nil {
+		spew.Dump(err)
+		return nil, err
+	}
+
+	if *debug {
+		spew.Dump(result)
+	}
+
+	return result, nil
+}
+
+func (ac *APIClient) PullImage(image string) (string, error) {
+	var digest = ""
 	var completeURL = ac.httpServerURL() + "/images/create?fromImage=" + image
 
 	resp, err := ac.httpClient.Post(completeURL, contentType, nil)
-
-	payload, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		return err
+		return "", err
 	}
 
-	fmt.Println(string(payload))
+	defer resp.Body.Close()
 
-	return nil
+	st := struct {
+		Status string `json:"status"`
+	}{}
+
+	var unmarshalErr error
+
+	decoder := json.NewDecoder(resp.Body)
+
+	for {
+		if unmarshalErr = decoder.Decode(&st); unmarshalErr == nil {
+			fmt.Println(st.Status)
+
+			if strings.HasPrefix(st.Status, "Digest: sha256:") {
+				digest = strings.TrimPrefix(st.Status, "Digest: sha256:")
+			}
+		} else {
+			if unmarshalErr != io.EOF {
+				spew.Dump(unmarshalErr)
+				return digest, unmarshalErr
+			}
+
+			break
+		}
+	}
+
+	return digest, nil
 }
 
 var unixAddr = flag.String("unixAddr", "", "UNIX socket that provides Docker Engine API")
@@ -133,7 +189,21 @@ func main() {
 		spew.Dump(result)
 	*/
 
-	if err := apiClient.PullImage(imageToPull); err != nil {
+	images, err := apiClient.FindImage(imageToPull)
+	if err != nil {
 		fmt.Println(err)
 	}
+
+	var imageDigest string
+
+	if len(images) == 0 {
+		imageDigest, err = apiClient.PullImage(imageToPull)
+		if err != nil {
+			fmt.Println(err)
+		}
+	} else {
+		imageDigest = strings.TrimPrefix(images[0].Identifier, "sha256:")
+	}
+
+	fmt.Println(imageDigest)
 }
