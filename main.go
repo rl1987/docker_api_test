@@ -14,6 +14,13 @@ import (
 	"github.com/davecgh/go-spew/spew"
 )
 
+const imageName = "ubuntu"
+const imageTag = "latest"
+
+const imageToPull = imageName + ":" + imageTag
+
+const contentType = "application/json"
+
 type APIClient struct {
 	HubUsername string
 	HubPassword string
@@ -50,16 +57,18 @@ func NewAPIClient(unixAddr string, tcpAddr string) (*APIClient, error) {
 	}, nil
 }
 
-func (ac *APIClient) Get(url string, result interface{}) error {
-	var completeURL = "http://"
-
+func (ac *APIClient) httpServerURL() string {
 	if ac.transport == "unix" {
-		completeURL += "unix"
-	} else {
-		completeURL += ac.addr
+		return "http://unix"
+	} else if ac.transport == "tcp" {
+		return "http://" + ac.addr
 	}
 
-	completeURL += url
+	return ""
+}
+
+func (ac *APIClient) Get(url string, result interface{}) error {
+	var completeURL = ac.httpServerURL() + url
 
 	resp, err := ac.httpClient.Get(completeURL)
 	if err != nil {
@@ -78,13 +87,21 @@ func (ac *APIClient) Get(url string, result interface{}) error {
 	defer resp.Body.Close()
 
 	return json.NewDecoder(resp.Body).Decode(result)
+}
+
+func (ac *APIClient) PullImage(image string) error {
+	var completeURL = ac.httpServerURL() + "/images/create?fromImage=" + image
+
+	resp, err := ac.httpClient.Post(completeURL, contentType, nil)
 
 	payload, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return err
 	}
 
-	return json.Unmarshal(payload, result)
+	fmt.Println(string(payload))
+
+	return nil
 }
 
 var unixAddr = flag.String("unixAddr", "", "UNIX socket that provides Docker Engine API")
@@ -106,11 +123,17 @@ func main() {
 		spew.Dump(apiClient)
 	}
 
-	var result interface{}
-	if err := apiClient.Get("/v1.36/info", &result); err != nil {
-		spew.Dump(err)
-		return
-	}
+	/*
+		var result interface{}
+		if err := apiClient.Get("/v1.36/info", &result); err != nil {
+			spew.Dump(err)
+			return
+		}
 
-	spew.Dump(result)
+		spew.Dump(result)
+	*/
+
+	if err := apiClient.PullImage(imageToPull); err != nil {
+		fmt.Println(err)
+	}
 }
