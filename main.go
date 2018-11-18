@@ -395,8 +395,6 @@ func (ac *APIClient) StartExec(execID string) (string, error) {
 			return "", err
 		}
 
-		spew.Dump(stdout)
-
 		return string(stdout), nil
 	}
 
@@ -432,19 +430,13 @@ func main() {
 	}
 
 	images, err := apiClient.FindImage(imageToPull)
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(-1)
-	}
+	checkError(err)
 
 	var imageDigest string
 
 	if len(images) == 0 {
 		imageDigest, err = apiClient.PullImage(imageToPull)
-		if err != nil {
-			fmt.Println(err)
-			os.Exit(-1)
-		}
+		checkError(err)
 	} else {
 		imageDigest = strings.TrimPrefix(images[0].Identifier, "sha256:")
 	}
@@ -452,17 +444,12 @@ func main() {
 	fmt.Println("Image: " + imageDigest)
 
 	containerID, err := apiClient.CreateContainer(imageToPull)
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(-1)
-	}
+	checkError(err)
 
 	fmt.Println("Created container " + containerID)
 
-	if err = apiClient.StartContainer(containerID); err != nil {
-		fmt.Println(err)
-		os.Exit(-1)
-	}
+	err = apiClient.StartContainer(containerID)
+	checkError(err)
 
 	fmt.Println("Started container")
 
@@ -477,10 +464,7 @@ func main() {
 			break
 		}
 
-		if err != nil {
-			fmt.Println(err)
-			os.Exit(-1)
-		}
+		checkError(err)
 
 		time.Sleep(1 * time.Second)
 	}
@@ -488,29 +472,26 @@ func main() {
 	command := "top -bn1"
 
 	execID, err := apiClient.CreateExec(containerID, strings.Fields(command))
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(-1)
-	}
+	checkError(err)
 
 	fmt.Println("Exec ID: " + execID)
 
 	output, err := apiClient.StartExec(execID)
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(-1)
-	}
+	checkError(err)
 
 	fmt.Println(output)
 
 	fmt.Println("Stopping container")
-	if err = apiClient.StopContainer(containerID); err != nil {
-		fmt.Println(err)
-		os.Exit(-1)
-	}
+	err = apiClient.StopContainer(containerID)
+	checkError(err)
 
 	fmt.Println("Removing container")
-	if err = apiClient.RemoveContainer(containerID); err != nil {
+	err = apiClient.RemoveContainer(containerID)
+	checkError(err)
+}
+
+func checkError(err error) {
+	if err != nil {
 		fmt.Println(err)
 		os.Exit(-1)
 	}
