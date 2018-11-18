@@ -469,17 +469,21 @@ func main() {
 		time.Sleep(1 * time.Second)
 	}
 
-	command := "top -bn1"
+	for {
+		command := "top -bn1"
 
-	execID, err := apiClient.CreateExec(containerID, strings.Fields(command))
-	checkError(err)
+		execID, err := apiClient.CreateExec(containerID, strings.Fields(command))
+		checkError(err)
 
-	fmt.Println("Exec ID: " + execID)
+		fmt.Println("Exec ID: " + execID)
 
-	output, err := apiClient.StartExec(execID)
-	checkError(err)
+		output, err := apiClient.StartExec(execID)
+		checkError(err)
 
-	fmt.Println(output)
+		fmt.Println(output)
+
+		time.Sleep(1 * time.Second)
+	}
 
 	fmt.Println("Stopping container")
 	err = apiClient.StopContainer(containerID)
