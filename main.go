@@ -295,6 +295,35 @@ func (ac *APIClient) StopContainer(containerID string) error {
 	return errors.New(errMsg.Message)
 }
 
+func (ac *APIClient) RemoveContainer(containerID string) error {
+	var completeURL = ac.httpServerURL() + "/containers/" + containerID
+
+	request, _ := http.NewRequest("DELETE", completeURL, nil) // XXX: consider checking error
+
+	resp, err := ac.httpClient.Do(request)
+	if err != nil {
+		return nil
+	}
+
+	if resp.StatusCode == 204 {
+		return nil
+	}
+
+	// FIXME: refactor away this code repetition
+	defer resp.Body.Close()
+
+	errMsg := struct {
+		Message string `json:"message"`
+	}{}
+
+	err = json.NewDecoder(resp.Body).Decode(&errMsg)
+	if err != nil {
+		return err
+	}
+
+	return errors.New(errMsg.Message)
+}
+
 var unixAddr = flag.String("unixAddr", "", "UNIX socket that provides Docker Engine API")
 var tcpAddr = flag.String("tcpAddr", "", "TCP HTTP address for Docker Engine API")
 var helpNeeded = flag.Bool("h", false, "usage help")
@@ -370,6 +399,12 @@ func main() {
 
 	fmt.Println("Stopping container")
 	if err = apiClient.StopContainer(containerID); err != nil {
+		fmt.Println(err)
+		os.Exit(-1)
+	}
+
+	fmt.Println("Removing container")
+	if err = apiClient.RemoveContainer(containerID); err != nil {
 		fmt.Println(err)
 		os.Exit(-1)
 	}
