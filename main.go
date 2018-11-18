@@ -166,7 +166,11 @@ func (ac *APIClient) CreateContainer(image string) (string, error) {
 	var completeURL = ac.httpServerURL() + "/containers/create"
 
 	containerSpec := map[string]interface{}{
-		"Image": image,
+		"Image":        image,
+		"AttachStdin":  true,
+		"AttachStdout": true,
+		"Tty":          true,
+		"Entrypoint":   "/bin/bash",
 	}
 
 	rqPayloadJSON, err := json.Marshal(containerSpec)
@@ -194,7 +198,39 @@ func (ac *APIClient) CreateContainer(image string) (string, error) {
 
 	containerID = st.ContainerId
 
+	if len(st.Warnings) > 0 {
+		for _, w := range st.Warnings {
+			fmt.Println("Warning: " + w)
+		}
+	}
+
 	return containerID, nil
+}
+
+func (ac *APIClient) StartContainer(containerID string) error {
+	var completeURL = ac.httpServerURL() + "/containers/" + containerID + "/start"
+
+	resp, err := ac.httpClient.Post(completeURL, contentType, nil)
+	if err != nil {
+		return err
+	}
+
+	if resp.StatusCode == 204 {
+		return nil
+	}
+
+	defer resp.Body.Close()
+
+	errMsg := struct {
+		Message string `json:"message"`
+	}{}
+
+	err = json.NewDecoder(resp.Body).Decode(&errMsg)
+	if err != nil {
+		return err
+	}
+
+	return errors.New(errMsg.Message)
 }
 
 var unixAddr = flag.String("unixAddr", "", "UNIX socket that provides Docker Engine API")
@@ -244,7 +280,7 @@ func main() {
 		imageDigest = strings.TrimPrefix(images[0].Identifier, "sha256:")
 	}
 
-	fmt.Println("Image :" + imageDigest)
+	fmt.Println("Image: " + imageDigest)
 
 	containerID, err := apiClient.CreateContainer(imageToPull)
 	if err != nil {
@@ -253,4 +289,11 @@ func main() {
 	}
 
 	fmt.Println("Created container " + containerID)
+
+	if err = apiClient.StartContainer(containerID); err != nil {
+		fmt.Println(err)
+		os.Exit(-1)
+	}
+
+	fmt.Println("Started container")
 }
