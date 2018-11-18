@@ -8,6 +8,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"os"
@@ -324,6 +325,93 @@ func (ac *APIClient) RemoveContainer(containerID string) error {
 	return errors.New(errMsg.Message)
 }
 
+func (ac *APIClient) CreateExec(containerID string, command []string) (string, error) {
+	var completeURL = ac.httpServerURL() + "/containers/" + containerID + "/exec"
+
+	taskSpec := map[string]interface{}{
+		"AttachStdout": true,
+		"Cmd":          command,
+	}
+
+	rqPayloadJSON, err := json.Marshal(&taskSpec)
+	if err != nil {
+		return "", err
+	}
+
+	resp, err := ac.httpClient.Post(completeURL, contentType, bytes.NewReader(rqPayloadJSON))
+	if err != nil {
+		return "", err
+	}
+
+	defer resp.Body.Close()
+
+	if resp.StatusCode == 201 {
+		st := struct {
+			Identifier string `json:"Id"`
+		}{}
+
+		err = json.NewDecoder(resp.Body).Decode(&st)
+		if err != nil {
+			return "", err
+		}
+
+		return st.Identifier, nil
+	}
+
+	errMsg := struct {
+		Message string `json:"message"`
+	}{}
+
+	err = json.NewDecoder(resp.Body).Decode(&errMsg)
+	if err != nil {
+		return "", err
+	}
+
+	return "", errors.New(errMsg.Message)
+}
+
+func (ac *APIClient) StartExec(execID string) (string, error) {
+	var completeURL = ac.httpServerURL() + "/exec/" + execID + "/start"
+
+	taskSpec := map[string]interface{}{
+		"Tty": true,
+	}
+
+	rqPayloadJSON, err := json.Marshal(&taskSpec)
+	if err != nil {
+		return "", err
+	}
+
+	resp, err := ac.httpClient.Post(completeURL, contentType, bytes.NewReader(rqPayloadJSON))
+	if err != nil {
+		return "", err
+	}
+
+	defer resp.Body.Close()
+
+	if resp.StatusCode == 200 {
+		stdout, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			return "", err
+		}
+
+		spew.Dump(stdout)
+
+		return string(stdout), nil
+	}
+
+	errMsg := struct {
+		Message string `json:"message"`
+	}{}
+
+	err = json.NewDecoder(resp.Body).Decode(&errMsg)
+	if err != nil {
+		return "", err
+	}
+
+	return "", errors.New(errMsg.Message)
+}
+
 var unixAddr = flag.String("unixAddr", "", "UNIX socket that provides Docker Engine API")
 var tcpAddr = flag.String("tcpAddr", "", "TCP HTTP address for Docker Engine API")
 var helpNeeded = flag.Bool("h", false, "usage help")
@@ -397,6 +485,24 @@ func main() {
 		time.Sleep(1 * time.Second)
 	}
 
+	command := "top -bn1"
+
+	execID, err := apiClient.CreateExec(containerID, strings.Fields(command))
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(-1)
+	}
+
+	fmt.Println("Exec ID: " + execID)
+
+	output, err := apiClient.StartExec(execID)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(-1)
+	}
+
+	fmt.Println(output)
+
 	fmt.Println("Stopping container")
 	if err = apiClient.StopContainer(containerID); err != nil {
 		fmt.Println(err)
@@ -408,5 +514,4 @@ func main() {
 		fmt.Println(err)
 		os.Exit(-1)
 	}
-
 }
