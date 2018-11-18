@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -160,6 +161,42 @@ func (ac *APIClient) PullImage(image string) (string, error) {
 	return digest, nil
 }
 
+func (ac *APIClient) CreateContainer(image string) (string, error) {
+	var containerID = ""
+	var completeURL = ac.httpServerURL() + "/containers/create"
+
+	containerSpec := map[string]interface{}{
+		"Image": image,
+	}
+
+	rqPayloadJSON, err := json.Marshal(containerSpec)
+	if err != nil {
+		return "", err
+	}
+
+	resp, err := ac.httpClient.Post(completeURL, contentType,
+		bytes.NewReader(rqPayloadJSON))
+	if err != nil {
+		return "", err
+	}
+
+	defer resp.Body.Close()
+
+	st := struct {
+		ContainerId string `json:"Id"`
+		Warnings    []string
+	}{}
+
+	err = json.NewDecoder(resp.Body).Decode(&st)
+	if err != nil {
+		return "", err
+	}
+
+	containerID = st.ContainerId
+
+	return containerID, nil
+}
+
 var unixAddr = flag.String("unixAddr", "", "UNIX socket that provides Docker Engine API")
 var tcpAddr = flag.String("tcpAddr", "", "TCP HTTP address for Docker Engine API")
 var helpNeeded = flag.Bool("h", false, "usage help")
@@ -192,6 +229,7 @@ func main() {
 	images, err := apiClient.FindImage(imageToPull)
 	if err != nil {
 		fmt.Println(err)
+		os.Exit(-1)
 	}
 
 	var imageDigest string
@@ -200,10 +238,19 @@ func main() {
 		imageDigest, err = apiClient.PullImage(imageToPull)
 		if err != nil {
 			fmt.Println(err)
+			os.Exit(-1)
 		}
 	} else {
 		imageDigest = strings.TrimPrefix(images[0].Identifier, "sha256:")
 	}
 
-	fmt.Println(imageDigest)
+	fmt.Println("Image :" + imageDigest)
+
+	containerID, err := apiClient.CreateContainer(imageToPull)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(-1)
+	}
+
+	fmt.Println("Created container " + containerID)
 }
