@@ -252,16 +252,6 @@ func main() {
 		spew.Dump(apiClient)
 	}
 
-	/*
-		var result interface{}
-		if err := apiClient.Get("/v1.36/info", &result); err != nil {
-			spew.Dump(err)
-			return
-		}
-
-		spew.Dump(result)
-	*/
-
 	images, err := apiClient.FindImage(imageToPull)
 	if err != nil {
 		fmt.Println(err)
