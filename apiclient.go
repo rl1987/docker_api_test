@@ -16,9 +16,6 @@ import (
 )
 
 type APIClient struct {
-	HubUsername string
-	HubPassword string
-
 	addr       string
 	httpClient http.Client
 	transport  string
