@@ -93,19 +93,20 @@ func main() {
 		}
 	}
 
+	stdoutChan := make(chan string)
+
 	checkLoadFunc := func(containerID string) {
 		command := "top -bn1"
 
 		execID, err := apiClient.CreateExec(containerID, strings.Fields(command))
 		checkError(err)
 
-		fmt.Println("Exec ID: " + execID)
+		stdoutChan <- "Exec ID: " + execID
 
 		output, err := apiClient.StartExec(execID)
 		checkError(err)
 
-		fmt.Println(output)
-
+		stdoutChan <- output
 	}
 
 	go waitForQFunc(qPressed)
@@ -114,6 +115,9 @@ func main() {
 
 	for !finished {
 		select {
+		case s := <-stdoutChan:
+			fmt.Println(s)
+			break
 		case <-qPressed:
 			finished = true
 			break
