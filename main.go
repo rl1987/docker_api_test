@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
+	"github.com/nsf/termbox-go"
 )
 
 const imageName = "ubuntu"
@@ -424,6 +425,9 @@ func main() {
 		return
 	}
 
+	err := termbox.Init()
+	checkError(err)
+
 	apiClient, _ := NewAPIClient(*unixAddr, *tcpAddr)
 	if *debug {
 		spew.Dump(apiClient)
@@ -469,7 +473,20 @@ func main() {
 		time.Sleep(1 * time.Second)
 	}
 
-	for {
+	qPressed := make(chan struct{})
+
+	waitForQFunc := func(qPressed chan struct{}) {
+		for {
+			if ev := termbox.PollEvent(); ev.Type == termbox.EventKey {
+				if ev.Ch == 'q' {
+					qPressed <- struct{}{}
+					break
+				}
+			}
+		}
+	}
+
+	checkLoadFunc := func(containerID string) {
 		command := "top -bn1"
 
 		execID, err := apiClient.CreateExec(containerID, strings.Fields(command))
@@ -482,7 +499,21 @@ func main() {
 
 		fmt.Println(output)
 
-		time.Sleep(1 * time.Second)
+	}
+
+	go waitForQFunc(qPressed)
+
+	finished := false
+
+	for !finished {
+		select {
+		case <-qPressed:
+			finished = true
+			break
+		case <-time.After(1 * time.Second):
+			go checkLoadFunc(containerID)
+		}
+
 	}
 
 	fmt.Println("Stopping container")
@@ -492,11 +523,14 @@ func main() {
 	fmt.Println("Removing container")
 	err = apiClient.RemoveContainer(containerID)
 	checkError(err)
+
+	termbox.Close()
 }
 
 func checkError(err error) {
 	if err != nil {
 		fmt.Println(err)
+		termbox.Close()
 		os.Exit(-1)
 	}
 }
