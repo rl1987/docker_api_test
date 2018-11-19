@@ -2,7 +2,7 @@
 
 import time
 import subprocess
-import pynput
+from pynput.keyboard import Key, Controller
 
 def wait_for_log(s):
     print('Waiting for ' + s)
