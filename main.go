@@ -18,12 +18,6 @@ const imageToPull = imageName + ":" + imageTag
 
 const contentType = "application/json"
 
-type DockerImage struct {
-	Identifier  string   `json:"Id"`
-	RepoDigests []string `json:"RepoDigests"`
-	RepoTags    []string `json:"RepoTags"`
-}
-
 var unixAddr = flag.String("unixAddr", "", "UNIX socket that provides Docker Engine API")
 var tcpAddr = flag.String("tcpAddr", "", "TCP HTTP address for Docker Engine API")
 var helpNeeded = flag.Bool("h", false, "usage help")
