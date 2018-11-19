@@ -207,16 +207,7 @@ func (ac *APIClient) StartContainer(containerID string) error {
 
 	defer resp.Body.Close()
 
-	errMsg := struct {
-		Message string `json:"message"`
-	}{}
-
-	err = json.NewDecoder(resp.Body).Decode(&errMsg)
-	if err != nil {
-		return err
-	}
-
-	return errors.New(errMsg.Message)
+	return parseErrorMessage(resp)
 }
 
 func (ac *APIClient) CheckIfContainerIsRunning(containerID string) (bool, error) {
@@ -241,17 +232,7 @@ func (ac *APIClient) CheckIfContainerIsRunning(containerID string) (bool, error)
 		return st.State.Running, nil
 	}
 
-	errMsg := struct {
-		Message string `json:"message"`
-	}{}
-
-	err = json.NewDecoder(resp.Body).Decode(&errMsg)
-	if err != nil {
-		return false, err
-	}
-
-	return false, errors.New(errMsg.Message)
-
+	return false, parseErrorMessage(resp)
 }
 
 func (ac *APIClient) StopContainer(containerID string) error {
@@ -268,16 +249,7 @@ func (ac *APIClient) StopContainer(containerID string) error {
 
 	defer resp.Body.Close()
 
-	errMsg := struct {
-		Message string `json:"message"`
-	}{}
-
-	err = json.NewDecoder(resp.Body).Decode(&errMsg)
-	if err != nil {
-		return err
-	}
-
-	return errors.New(errMsg.Message)
+	return parseErrorMessage(resp)
 }
 
 func (ac *APIClient) RemoveContainer(containerID string) error {
@@ -294,19 +266,9 @@ func (ac *APIClient) RemoveContainer(containerID string) error {
 		return nil
 	}
 
-	// FIXME: refactor away this code repetition
 	defer resp.Body.Close()
 
-	errMsg := struct {
-		Message string `json:"message"`
-	}{}
-
-	err = json.NewDecoder(resp.Body).Decode(&errMsg)
-	if err != nil {
-		return err
-	}
-
-	return errors.New(errMsg.Message)
+	return parseErrorMessage(resp)
 }
 
 func (ac *APIClient) CreateExec(containerID string, command []string) (string, error) {
@@ -342,16 +304,7 @@ func (ac *APIClient) CreateExec(containerID string, command []string) (string, e
 		return st.Identifier, nil
 	}
 
-	errMsg := struct {
-		Message string `json:"message"`
-	}{}
-
-	err = json.NewDecoder(resp.Body).Decode(&errMsg)
-	if err != nil {
-		return "", err
-	}
-
-	return "", errors.New(errMsg.Message)
+	return "", parseErrorMessage(resp)
 }
 
 func (ac *APIClient) StartExec(execID string) (string, error) {
@@ -382,14 +335,18 @@ func (ac *APIClient) StartExec(execID string) (string, error) {
 		return string(stdout), nil
 	}
 
+	return "", parseErrorMessage(resp)
+}
+
+func parseErrorMessage(resp *http.Response) error {
+
 	errMsg := struct {
 		Message string `json:"message"`
 	}{}
 
-	err = json.NewDecoder(resp.Body).Decode(&errMsg)
-	if err != nil {
-		return "", err
+	if err := json.NewDecoder(resp.Body).Decode(&errMsg); err != nil {
+		return err
 	}
 
-	return "", errors.New(errMsg.Message)
+	return errors.New(errMsg.Message)
 }
