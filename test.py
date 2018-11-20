@@ -1,5 +1,6 @@
 #!/usr/bin/python
 
+import docker
 import time
 import subprocess
 from pynput.keyboard import Key, Controller
@@ -13,6 +14,8 @@ def wait_for_log(s):
         if l.find(s) is not -1:
             return l
 
+client = docker.from_env()
+
 proc = subprocess.Popen(['./docker_api_test',
                         '-unixAddr', '/var/run/docker.sock'],
                         stdout=subprocess.PIPE,
@@ -23,6 +26,9 @@ image_id = image_line[len('Image: '):]
 
 container_line = wait_for_log('Created container ')
 container_id = container_line[len('Created container '):]
+
+container = client.containers.get(container_id)
+assert container.image.id == "sha256:" + image_id
 
 wait_for_log('Waiting')
 
