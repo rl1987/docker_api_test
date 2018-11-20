@@ -19,10 +19,16 @@ proc = subprocess.Popen(['./docker_api_test',
                         stdin=subprocess.PIPE)
 
 image_line = wait_for_log('Image: ')
+image_id = image_line[len('Image: '):]
 
 container_line = wait_for_log('Created container ')
+container_id = container_line[len('Created container '):]
 
 wait_for_log('Waiting')
+
+wait_for_log('top -')
+wait_for_log('%Cpu(s):')
+wait_for_log('KiB Mem :')
 wait_for_log('PID USER')
 
 keyboard = Controller()
